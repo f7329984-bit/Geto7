@@ -3,11 +3,20 @@ import random
 import json
 import os
 import asyncio
+import sys
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# =============== FIX FOR EVENT LOOP ================
+if sys.version_info[0] == 3 and sys.version_info[1] >= 10:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
 #=============== CONFIG ================
 API_ID = 39035274
@@ -16,13 +25,12 @@ BOT_TOKEN = "8951612687:AAGP6DJYz0VKsD_NZQyz5_DlM6sZHWqoWd8"
 OWNER_ID = 8722144519
 BOT_USERNAME = "ll_SUPRRME_XD_7_ll_BOT"
 
-#=============== CUSTOM LINES (WILL BE LOADED FROM FILE) ================
+#=============== CUSTOM LINES ================
 CUSTOM_LINES = [
     "🔥 teri mummy ki chut!",
     "⚡ bahen k lode teri dadi ki black hairy pussy",
     "🚀 teri mummy ko ulta ltkakr taangduga aur uski chut maruga!",
     "✨ bsdk teri mummy teri dadi sb randi ki bachi h",
-
     # ========== DIRECT ABUSE LINES ==========
     "🔥 teri mummy ki chut!",
     "⚡ bahen k lode teri dadi ki black hairy pussy",
@@ -212,13 +220,17 @@ CUSTOM_LINES = [
     "BHOSDIKE ${USER} TERI BEHEN KI CHUT ME BOT DAAL DUNGA TERI AUKAAT PEHLE BANA 🖕",
     "${USER} CHUTIYE TU KAUN HOTA HAI BOT USE KARNE WALA TERI MAIYA NE BOL DIYA TERA BAAP BHI NAHI HAI 🤡",
     "TERI MAKI CHUT ${USER} MADARCHOD PEHLE SUDO LE PHIR AA NAHI TO TERI GAAND MARUNGA 💀",
+
 ]
 
-# =============== DUMMY SERVER FOR RENDER ================
+# =============== WEB SERVER FOR RENDER ================
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.wfile.write(b"Bot is running!")
+        self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.end_headers()
+        html = "<h1>ULTRA FAST RAID BOT</h1><p>Status: ONLINE</p><p>Speed: 100x</p><p>Multi-Raid Support</p>"
+        self.wfile.write(html.encode('utf-8'))
     def log_message(self, format, *args):
         pass
 
@@ -229,56 +241,78 @@ def run_server():
 
 threading.Thread(target=run_server, daemon=True).start()
 
-app = Client(
-    "fast_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
+app = Client("ultra_fast_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 #=============== DATA ================
-sudo_users = {OWNER_ID}
-raid_active = {}  # chat_id -> True/False (UNLIMITED RAID)
-raid_task = None  # single task reference
+sudo_users = set()
+raid_active = {}  # chat_id_target_id -> True/False (supports multiple raids per group)
+raid_tasks = {}   # track raid tasks
+raid_count = {}   # track messages sent
 
 #=============== FILE PATHS ================
 SUDO_FILE = "sudo_users.json"
 LINES_FILE = "custom_lines.json"
 
 #=============== DATA PERSISTENCE ================
-
 def load_all_data():
     global sudo_users, CUSTOM_LINES
     print("\n📂 LOADING SAVED DATA...")
     
     if os.path.exists(SUDO_FILE):
-        with open(SUDO_FILE, "r") as f:
-            loaded_sudo = json.load(f)
-            if loaded_sudo:
-                sudo_users = set(loaded_sudo)
-                print(f"✅ Loaded {len(sudo_users)} sudo users")
+        try:
+            with open(SUDO_FILE, "r") as f:
+                loaded_sudo = json.load(f)
+                if loaded_sudo and isinstance(loaded_sudo, list):
+                    sudo_users = set(loaded_sudo)
+                    print(f"✅ Loaded {len(sudo_users)} sudo users")
+                else:
+                    sudo_users = {OWNER_ID}
+        except Exception as e:
+            print(f"⚠️ Error loading sudo users: {e}")
+            sudo_users = {OWNER_ID}
+    else:
+        sudo_users = {OWNER_ID}
+        save_sudo_users()
     
     if os.path.exists(LINES_FILE):
-        with open(LINES_FILE, "r", encoding='utf-8') as f:
-            loaded_lines = json.load(f)
-            if loaded_lines:
-                CUSTOM_LINES = loaded_lines
-                print(f"✅ Loaded {len(CUSTOM_LINES)} custom lines")
+        try:
+            with open(LINES_FILE, "r", encoding='utf-8') as f:
+                loaded_lines = json.load(f)
+                if loaded_lines and isinstance(loaded_lines, list):
+                    CUSTOM_LINES = loaded_lines
+                    print(f"✅ Loaded {len(CUSTOM_LINES)} custom lines")
+        except Exception as e:
+            print(f"⚠️ Error loading lines: {e}")
     
+    print(f"👑 Owner ID: {OWNER_ID}")
+    print(f"🔑 Sudo Users: {list(sudo_users)}")
     print("✅ DATA LOADING COMPLETE!\n")
 
 def save_sudo_users():
-    with open(SUDO_FILE, "w") as f:
-        json.dump(list(sudo_users), f, indent=2)
+    try:
+        with open(SUDO_FILE, "w") as f:
+            json.dump(list(sudo_users), f, indent=2)
+        print(f"💾 Saved {len(sudo_users)} sudo users")
+    except Exception as e:
+        print(f"❌ Error saving sudo users: {e}")
 
 def save_custom_lines():
-    with open(LINES_FILE, "w", encoding='utf-8') as f:
-        json.dump(CUSTOM_LINES, f, indent=2, ensure_ascii=False)
+    try:
+        with open(LINES_FILE, "w", encoding='utf-8') as f:
+            json.dump(CUSTOM_LINES, f, indent=2, ensure_ascii=False)
+        print(f"💾 Saved {len(CUSTOM_LINES)} custom lines")
+    except Exception as e:
+        print(f"❌ Error saving lines: {e}")
 
 def save_all_data():
     save_sudo_users()
     save_custom_lines()
-    print("💾 All data saved!")
+
+#=============== CHECK SUDO ================
+def is_sudo(user_id):
+    if user_id == OWNER_ID:
+        return True
+    return user_id in sudo_users
 
 #=============== BUTTONS ================
 def get_main_keyboard():
@@ -290,162 +324,381 @@ def get_main_keyboard():
         [InlineKeyboardButton("⚡ Get Sudo", url="https://t.me/ll_SUPRRME_XD_ll")]
     ])
 
-#=============== UNLIMITED RAID LOOP (from first code) ================
-async def unlimited_raid_loop(client, chat_id, target_user_id):
-    """
-    UNLIMITED raid - tab tak chalega jab tak raid_active[chat_id] = False na ho jaye.
-    Har LINE ko sequentially bhejta hai, phir dobara shuru se.
-    """
-    global raid_active
+#=============== GET CLICKABLE MENTION ================
+async def get_clickable_mention(client, user_input, message):
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+        return target.mention, target.id, target.first_name
     
-    try:
-        target_user = await client.get_users(target_user_id)
-        mention = target_user.mention
-    except:
-        mention = f"`{target_user_id}`"
+    if user_input and user_input.startswith("@"):
+        try:
+            target = await client.get_users(user_input)
+            return target.mention, target.id, target.first_name
+        except:
+            return user_input, None, None
+    
+    if user_input and user_input.isdigit():
+        try:
+            target = await client.get_users(int(user_input))
+            return target.mention, target.id, target.first_name
+        except:
+            return f"`{user_input}`", None, None
+    
+    return None, None, None
+
+#=============== RAID LOOP (SUPPORTS LIMITED + UNLIMITED) ================
+async def raid_loop(client, chat_id, target_user_id, target_mention, target_name, raid_id, count):
+    """
+    raid_id: unique identifier for this raid (chat_id_target_id)
+    count: -1 = unlimited, >0 = limited messages
+    """
+    global raid_active, raid_count
+    
+    raid_active[raid_id] = True
+    sent = 0
     
     if not CUSTOM_LINES:
         await client.send_message(chat_id, f"❌ No custom lines found! Use `!addline` to add lines first.")
-        raid_active[chat_id] = False
+        raid_active[raid_id] = False
         return
     
+    # Determine raid type
+    if count == -1:
+        raid_type = "UNLIMITED"
+        stop_cmd = "!stopr"
+    else:
+        raid_type = f"LIMITED ({count} messages)"
+        stop_cmd = "!stopr"
+    
+    # Start message
     await client.send_message(
         chat_id,
-        f"╔══════════════════════╗\n"
-        f"   ⚔️ **UNLIMITED RAID** ⚔️\n"
-        f"╚══════════════════════╝\n\n"
-        f"🎯 **Target:** {mention}\n"
+        f"╔══════════════════════════════════╗\n"
+        f"   ⚡ **RAID STARTED** ⚡\n"
+        f"╚══════════════════════════════════╝\n\n"
+        f"🎯 **Target:** {target_mention}\n"
+        f"👤 **Name:** {target_name}\n"
         f"📜 **Lines:** `{len(CUSTOM_LINES)}`\n"
-        f"⚡ **Mode:** UNLIMITED 🔥\n"
-        f"🛑 **Stop:** `!stopr`"
+        f"⚡ **Speed:** 100x ULTRA FAST\n"
+        f"♾️ **Mode:** {raid_type}\n"
+        f"🛑 **Stop:** `{stop_cmd}`\n\n"
+        f"✅ **RAID STARTED!**"
     )
     
-    raid_active[chat_id] = True
-    
     try:
-        while raid_active.get(chat_id, False):
-            for line in CUSTOM_LINES:
-                if not raid_active.get(chat_id, False):
+        if count == -1:  # UNLIMITED MODE
+            while raid_active.get(raid_id, False):
+                for line in CUSTOM_LINES:
+                    if not raid_active.get(raid_id, False):
+                        break
+                    
+                    if "${USER}" in line:
+                        final = line.replace("${USER}", target_mention)
+                    else:
+                        final = f"{target_mention} {line}"
+                    
+                    try:
+                        await client.send_message(chat_id, final)
+                        sent += 1
+                        
+                        if sent % 200 == 0:
+                            await client.send_message(
+                                chat_id,
+                                f"📊 **Progress**\n📨 Sent: `{sent}`\n🎯 {target_mention}"
+                            )
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        if "flood" in error_str or "429" in error_str:
+                            await asyncio.sleep(1)
+                        elif "bot was blocked" in error_str:
+                            raid_active[raid_id] = False
+                            break
+                        continue
+                    
+                    await asyncio.sleep(0)
+        
+        else:  # LIMITED MODE
+            status_msg = await client.send_message(
+                chat_id,
+                f"⏳ **Raiding {target_name}**\n📨 Target: `{count}` messages\n⚡ Speed: 100x"
+            )
+            
+            for i in range(count):
+                if not raid_active.get(raid_id, False):
                     break
                 
-                # Format line with mention
-                if "${USER}" in line:
-                    final = line.replace("${USER}", mention)
-                else:
-                    final = f"{mention} {line}"
-                
-                try:
-                    await client.send_message(chat_id, final)
-                except Exception as e:
-                    error_str = str(e).lower()
-                    if "flood" in error_str or "too many" in error_str or "429" in error_str:
-                        await asyncio.sleep(2)
-                    elif "bot was blocked" in error_str:
-                        raid_active[chat_id] = False
+                for line in CUSTOM_LINES:
+                    if not raid_active.get(raid_id, False) or sent >= count:
                         break
-                    continue
-                
-                # Ultra fast speed - no delay (0s)
-                await asyncio.sleep(0)
+                    
+                    if sent >= count:
+                        break
+                    
+                    if "${USER}" in line:
+                        final = line.replace("${USER}", target_mention)
+                    else:
+                        final = f"{target_mention} {line}"
+                    
+                    try:
+                        await client.send_message(chat_id, final)
+                        sent += 1
+                    except:
+                        pass
+                    
+                    await asyncio.sleep(0)
+            
+            await status_msg.edit_text(
+                f"✅ **RAID COMPLETE**\n"
+                f"📨 Sent: `{sent}/{count}`\n"
+                f"🎯 {target_mention}"
+            )
+            
     except Exception as e:
         print(f"Raid error: {e}")
     finally:
-        raid_active[chat_id] = False
+        raid_active[raid_id] = False
+        raid_count[raid_id] = sent
+        
+        # Only send completion message for unlimited raids
+        if count == -1:
+            await client.send_message(
+                chat_id,
+                f"🛑 **RAID STOPPED**\n📊 Total: `{sent}` messages\n🎯 {target_mention}"
+            )
 
-#=============== START COMMAND ================
-@app.on_message(filters.command("start"))
-async def start_command(client, message: Message):
-    user = message.from_user
-    await message.reply_text(
-        f"🔥 Welcome {user.first_name}! 🔥\n\n"
-        f"💪 **UNLIMITED RAID BOT**\n\n"
-        f"⚡ `.r @user` = Unlimited raid (tab tak chalega jab tak stop na karein)\n"
-        f"🛑 `.s` = Raid stop\n\n"
-        f"**Data Persistence:** ✅ Enabled\n"
-        f"**Lines Saved:** `{len(CUSTOM_LINES)}`\n"
-        f"**Sudo Users:** `{len(sudo_users)}`\n\n"
-        f"Use buttons below!",
-        reply_markup=get_main_keyboard()
-    )
-
-#=============== UNLIMITED RAID COMMAND ================
-@app.on_message(filters.command(["r", "rr", "rrr"], prefixes="!") & filters.group)
+#=============== UNLIMITED RAID (!r) ================
+@app.on_message(filters.command(["r"], prefixes="!") & filters.group)
 async def unlimited_raid_command(client, message: Message):
-    global raid_task
-    
-    if message.from_user.id not in sudo_users:
-        await message.reply_text("❌ Not authorized! Only sudo users can use raid.")
+    if not is_sudo(message.from_user.id):
+        await message.reply_text(f"❌ Not authorized! Only sudo users can use raid.\n👑 Owner: `{OWNER_ID}`")
         return
     
-    chat_id = message.chat.id
-    
-    # Check if already active
-    if raid_active.get(chat_id, False):
-        await message.reply_text("❌ Raid already active in this group! Use `!stopr` first.")
-        return
-    
-    # Get target
     target_user = None
+    
     if message.reply_to_message:
         target_user = message.reply_to_message.from_user
     else:
-        await message.reply_text("❌ Reply to a user to start raid!\nUsage: `.r @user` (reply karke)")
+        parts = message.text.split()
+        for part in parts:
+            if part.startswith("@"):
+                try:
+                    target_user = await client.get_users(part)
+                    break
+                except:
+                    pass
+        
+        if not target_user and len(parts) > 1:
+            try:
+                target_user = await client.get_users(parts[1])
+            except:
+                pass
+    
+    if not target_user:
+        await message.reply_text(
+            "❌ **Usage:** `!r @username` (unlimited)\n"
+            "• Reply to user → `!r`\n"
+            "• Tag user → `!r @username`\n\n"
+            "📌 **Limited Raid:** `!tr @username 100`\n"
+            "🛑 **Stop:** `!stopr`"
+        )
         return
     
     if target_user.id == OWNER_ID:
         await message.reply_text("🛡️ Cannot raid the owner!")
         return
-    if target_user.id in sudo_users:
+    
+    if is_sudo(target_user.id):
         await message.reply_text("🛡️ Cannot raid a sudo user!")
         return
     
-    # Delete command message
+    chat_id = message.chat.id
+    raid_id = f"{chat_id}_{target_user.id}"
+    
+    if raid_active.get(raid_id, False):
+        await message.reply_text(f"❌ Already raiding {target_user.first_name}!\n📨 Sent: {raid_count.get(raid_id, 0)} messages\n🛑 Use `!stopr` to stop first.")
+        return
+    
     try:
         await message.delete()
     except:
         pass
     
-    # Start unlimited raid as a background task
-    raid_task = asyncio.create_task(
-        unlimited_raid_loop(client, chat_id, target_user.id)
-    )
+    mention = target_user.mention
+    name = target_user.first_name
+    
+    task = asyncio.create_task(raid_loop(client, chat_id, target_user.id, mention, name, raid_id, -1))
+    raid_tasks[raid_id] = task
+
+#=============== LIMITED RAID (!tr) ================
+@app.on_message(filters.command(["tr"], prefixes="!") & filters.group)
+async def limited_raid_command(client, message: Message):
+    if not is_sudo(message.from_user.id):
+        await message.reply_text(f"❌ Not authorized! Only sudo users can use raid.")
+        return
+    
+    parts = message.text.split()
+    
+    if len(parts) < 2:
+        await message.reply_text(
+            "❌ **Usage:** `!tr @username count message`\n\n"
+            "Examples:\n"
+            "• `!tr @user 100`\n"
+            "• `!tr @user 500`\n"
+            "• Reply to user → `!tr 100`\n\n"
+            "📌 **Unlimited:** `!r @username`"
+        )
+        return
+    
+    target_user = None
+    count = None
+    
+    # Parse target and count
+    if message.reply_to_message:
+        target_user = message.reply_to_message.from_user
+        if len(parts) > 1:
+            try:
+                count = int(parts[1])
+            except:
+                await message.reply_text("❌ Invalid count! Example: `!tr 100`")
+                return
+    else:
+        # Find target (@username)
+        for part in parts:
+            if part.startswith("@"):
+                try:
+                    target_user = await client.get_users(part)
+                    break
+                except:
+                    pass
+        
+        if not target_user and len(parts) > 1:
+            try:
+                target_user = await client.get_users(parts[1])
+            except:
+                pass
+        
+        # Find count
+        for part in parts:
+            if part.isdigit():
+                count = int(part)
+                break
+    
+    if not target_user:
+        await message.reply_text("❌ No target found! Tag a user or reply to their message.")
+        return
+    
+    if not count:
+        await message.reply_text("❌ No count found! Example: `!tr @username 100`")
+        return
+    
+    if count < 1:
+        await message.reply_text("❌ Count must be at least 1!")
+        return
+    
+    if count > 10000:
+        await message.reply_text("❌ Maximum count is 10000!")
+        return
+    
+    if target_user.id == OWNER_ID:
+        await message.reply_text("🛡️ Cannot raid the owner!")
+        return
+    
+    if is_sudo(target_user.id):
+        await message.reply_text("🛡️ Cannot raid a sudo user!")
+        return
+    
+    chat_id = message.chat.id
+    raid_id = f"{chat_id}_{target_user.id}"
+    
+    if raid_active.get(raid_id, False):
+        await message.reply_text(f"❌ Already raiding {target_user.first_name}!\n🛑 Use `!stopr` first.")
+        return
+    
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    mention = target_user.mention
+    name = target_user.first_name
+    
+    task = asyncio.create_task(raid_loop(client, chat_id, target_user.id, mention, name, raid_id, count))
+    raid_tasks[raid_id] = task
 
 #=============== STOP RAID ================
 @app.on_message(filters.command("stopr", prefixes="!") & filters.group)
 async def stop_raid_command(client, message: Message):
-    global raid_active, raid_task
-    
-    if message.from_user.id not in sudo_users:
+    if not is_sudo(message.from_user.id):
         await message.reply_text("❌ Not authorized!")
         return
     
     chat_id = message.chat.id
     
-    if not raid_active.get(chat_id, False):
+    # Find all active raids in this group
+    stopped_raids = []
+    for raid_id, active in raid_active.items():
+        if raid_id.startswith(f"{chat_id}_") and active:
+            raid_active[raid_id] = False
+            target_id = raid_id.split("_")[1]
+            stopped_raids.append(target_id)
+    
+    if not stopped_raids:
         await message.reply_text("❌ No active raid in this group!")
         return
-    
-    # Stop the raid
-    raid_active[chat_id] = False
     
     try:
         await message.delete()
     except:
         pass
     
-    try:
-        await client.send_message(
-            chat_id,
-            f"╔══════════════════════╗\n"
-            f"   🛑 **RAID STOPPED** 🛑\n"
-            f"╚══════════════════════╝\n\n"
-            f"✅ Raid stopped successfully!\n"
-            f"⚔️ Ready for next raid!"
-        )
-    except:
-        pass
+    await client.send_message(
+        chat_id,
+        f"🛑 **RAID STOPPED**\n"
+        f"📊 Stopped: `{len(stopped_raids)}` raid(s)"
+    )
 
-#=============== ADD CUSTOM LINE ================
+#=============== STOP ALL RAIDS (Owner only) ================
+@app.on_message(filters.command("stopall", prefixes="!") & filters.private)
+async def stop_all_raids(client, message: Message):
+    if message.from_user.id != OWNER_ID:
+        await message.reply_text("❌ Only owner!")
+        return
+    
+    count = 0
+    for raid_id in list(raid_active.keys()):
+        if raid_active.get(raid_id, False):
+            raid_active[raid_id] = False
+            count += 1
+    
+    await message.reply_text(f"🛑 **Stopped {count} raid(s) globally**")
+
+#=============== RAID STATUS ================
+@app.on_message(filters.command("raidstatus", prefixes="!") & filters.group)
+async def raid_status_command(client, message: Message):
+    if not is_sudo(message.from_user.id):
+        await message.reply_text("❌ Not authorized!")
+        return
+    
+    chat_id = message.chat.id
+    active_raids = []
+    
+    for raid_id, active in raid_active.items():
+        if raid_id.startswith(f"{chat_id}_") and active:
+            target_id = raid_id.split("_")[1]
+            sent = raid_count.get(raid_id, 0)
+            try:
+                user = await client.get_users(int(target_id))
+                active_raids.append(f"• {user.mention} - {sent} msgs")
+            except:
+                active_raids.append(f"• `{target_id}` - {sent} msgs")
+    
+    if not active_raids:
+        await message.reply_text("📊 **No active raids in this group**")
+    else:
+        status_text = f"📊 **ACTIVE RAIDS**\n\n" + "\n".join(active_raids)
+        await message.reply_text(status_text)
+
+#=============== ADD LINE ================
 @app.on_message(filters.command("addline", prefixes="!") & filters.private)
 async def add_line_command(client, message: Message):
     if message.from_user.id != OWNER_ID:
@@ -454,19 +707,19 @@ async def add_line_command(client, message: Message):
     
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.reply_text("❌ Usage: !addline <your text line>\n💡 Use `${USER}` for target mention")
+        await message.reply_text("❌ Usage: `!addline <text>`\n💡 Use `${USER}` for target mention")
         return
     
     new_line = parts[1]
     CUSTOM_LINES.append(new_line)
     save_custom_lines()
     
-    await message.reply_text(f"✅ **Line Added!**\n📊 Total Lines: `{len(CUSTOM_LINES)}`\n\n📝 `{new_line[:100]}`")
+    await message.reply_text(f"✅ **Line Added!**\n📊 Total: `{len(CUSTOM_LINES)}`\n\n📝 `{new_line[:100]}`")
 
 #=============== VIEW LINES ================
 @app.on_message(filters.command("lines", prefixes="!") & filters.private)
 async def view_lines_command(client, message: Message):
-    if message.from_user.id not in sudo_users:
+    if not is_sudo(message.from_user.id):
         await message.reply_text("❌ Not authorized!")
         return
     
@@ -480,41 +733,74 @@ async def view_lines_command(client, message: Message):
         lines_text += f"`{i}.` {display}\n"
     
     if len(CUSTOM_LINES) > 50:
-        lines_text += f"\n...and `{len(CUSTOM_LINES)-50}` more lines"
+        lines_text += f"\n...and `{len(CUSTOM_LINES)-50}` more"
     
     await message.reply_text(lines_text)
+
+#=============== DELETE LINES ================
+@app.on_message(filters.command("dellines", prefixes="!") & filters.private)
+async def delete_lines_command(client, message: Message):
+    if message.from_user.id != OWNER_ID:
+        await message.reply_text("❌ Only owner!")
+        return
+    
+    count = len(CUSTOM_LINES)
+    CUSTOM_LINES.clear()
+    save_custom_lines()
+    await message.reply_text(f"🗑️ Deleted all `{count}` lines!")
 
 #=============== SUDO MANAGEMENT ================
 @app.on_message(filters.command("add", prefixes="!") & filters.group)
 async def add_sudo_command(client, message: Message):
     if message.from_user.id != OWNER_ID:
-        await message.reply_text("❌ Only owner can add sudo users!")
+        await message.reply_text(f"❌ Only owner can add sudo users!")
         return
 
+    target_user = None
+    
     if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
-    elif len(message.command) > 1:
-        try:
-            user_id = int(message.command[1])
-        except:
-            await message.reply_text("❌ Invalid user ID!")
-            return
+        target_user = message.reply_to_message.from_user
     else:
-        await message.reply_text("❌ Reply to user or provide ID!")
+        parts = message.text.split()
+        for part in parts:
+            if part.startswith("@"):
+                try:
+                    target_user = await client.get_users(part)
+                    break
+                except:
+                    pass
+        
+        if not target_user and len(parts) > 1:
+            try:
+                user_id = int(parts[1])
+                target_user = await client.get_users(user_id)
+            except:
+                pass
+    
+    if not target_user:
+        await message.reply_text("❌ Reply to user or tag them!\nUsage: `!add @username`")
         return
+
+    user_id = target_user.id
+    user_name = target_user.first_name
 
     if user_id == OWNER_ID:
         await message.reply_text("❌ Owner is already sudo!")
         return
 
+    if user_id in sudo_users:
+        await message.reply_text(f"❌ {user_name} is already sudo!")
+        return
+
     sudo_users.add(user_id)
     save_sudo_users()
+    
+    await message.reply_text(f"✅ **{user_name} added as sudo user!**")
+    
     try:
-        user = await client.get_users(user_id)
-        await message.reply_text(f"✅ {user.first_name} added as sudo user!")
+        await message.delete()
     except:
-        await message.reply_text(f"✅ User `{user_id}` added as sudo!")
-    await message.delete()
+        pass
 
 @app.on_message(filters.command("remove", prefixes="!") & filters.group)
 async def remove_sudo_command(client, message: Message):
@@ -522,33 +808,55 @@ async def remove_sudo_command(client, message: Message):
         await message.reply_text("❌ Only owner can remove sudo users!")
         return
 
+    target_user = None
+    
     if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
-    elif len(message.command) > 1:
-        try:
-            user_id = int(message.command[1])
-        except:
-            await message.reply_text("❌ Invalid user ID!")
-            return
+        target_user = message.reply_to_message.from_user
     else:
-        await message.reply_text("❌ Reply to user or provide ID!")
+        parts = message.text.split()
+        for part in parts:
+            if part.startswith("@"):
+                try:
+                    target_user = await client.get_users(part)
+                    break
+                except:
+                    pass
+        
+        if not target_user and len(parts) > 1:
+            try:
+                user_id = int(parts[1])
+                target_user = await client.get_users(user_id)
+            except:
+                pass
+    
+    if not target_user:
+        await message.reply_text("❌ Reply to user or tag them!\nUsage: `!remove @username`")
         return
 
-    if user_id in sudo_users and user_id != OWNER_ID:
-        sudo_users.remove(user_id)
-        save_sudo_users()
-        try:
-            user = await client.get_users(user_id)
-            await message.reply_text(f"✅ {user.first_name} removed from sudo!")
-        except:
-            await message.reply_text(f"✅ User `{user_id}` removed from sudo!")
+    user_id = target_user.id
+    user_name = target_user.first_name
+
+    if user_id == OWNER_ID:
+        await message.reply_text("❌ Cannot remove owner!")
+        return
+
+    if user_id not in sudo_users:
+        await message.reply_text(f"❌ {user_name} is not sudo!")
+        return
+
+    sudo_users.remove(user_id)
+    save_sudo_users()
+    
+    await message.reply_text(f"✅ **{user_name} removed from sudo!**")
+    
+    try:
         await message.delete()
-    else:
-        await message.reply_text("❌ User is not a sudo user!")
+    except:
+        pass
 
 @app.on_message(filters.command("sudolist", prefixes="!") & filters.group)
 async def sudo_list_command(client, message: Message):
-    if message.from_user.id not in sudo_users:
+    if not is_sudo(message.from_user.id):
         await message.reply_text("❌ Not authorized!")
         return
 
@@ -556,93 +864,105 @@ async def sudo_list_command(client, message: Message):
         await message.reply_text("📝 No sudo users found!")
         return
 
-    sudo_list = "👑 **Sudo Users List**\n\n"
-    for uid in sudo_users:
+    sudo_list = "👑 **SUDO USERS**\n\n"
+    for uid in list(sudo_users):
         try:
             user = await client.get_users(uid)
-            sudo_list += f"• {user.first_name}\n ┗ ID: `{uid}`\n"
+            sudo_list += f"• {user.mention}\n  ┗ ID: `{uid}`\n"
         except:
-            sudo_list += f"• Unknown User\n ┗ ID: `{uid}`\n"
-
+            sudo_list += f"• Unknown\n  ┗ ID: `{uid}`\n"
+    
+    sudo_list += f"\n👑 Owner: `{OWNER_ID}`"
+    
     await message.reply_text(sudo_list)
 
-#=============== ALIVE / PING ================
+#=============== ALIVE ================
 @app.on_message(filters.command("alive", prefixes="!") & filters.group)
 async def alive_command(client, message: Message):
+    chat_id = message.chat.id
+    active_count = 0
+    for raid_id, active in raid_active.items():
+        if raid_id.startswith(f"{chat_id}_") and active:
+            active_count += 1
+    
     await message.reply_text(
         f"╔══════════════════════╗\n"
         f"   🔥 **BOT ONLINE** 🔥\n"
         f"╚══════════════════════╝\n\n"
-        f"⚡ **Mode:** UNLIMITED RAID\n"
+        f"⚡ **Speed:** 100x ULTRA FAST\n"
         f"📜 **Lines:** `{len(CUSTOM_LINES)}`\n"
         f"🔑 **Sudo:** `{len(sudo_users)}`\n"
-        f"✅ Ready for action!"
+        f"🎯 **Active Raids:** `{active_count}`\n"
+        f"👑 **Owner:** `{OWNER_ID}`"
     )
 
+#=============== PING ================
 @app.on_message(filters.command("ping", prefixes="!") & filters.group)
 async def ping_command(client, message: Message):
     start = time.time()
     msg = await message.reply_text("📡 Pinging...")
     end = time.time()
     ping_time = round((end - start) * 1000)
-    await msg.edit_text(f"⚡ **PONG!** `{ping_time}ms`\n🚀 **Ultra Fast Mode**")
+    await msg.edit_text(f"⚡ **PONG!** `{ping_time}ms`\n🚀 **100x ULTRA FAST**")
 
-#=============== CALLBACK HANDLER ================
+#=============== HELP ================
+@app.on_message(filters.command("help", prefixes="!"))
+async def help_command(client, message: Message):
+    await message.reply_text(
+        f"🤖 **RAID BOT COMMANDS**\n\n"
+        f"⚔️ **RAID:**\n"
+        f"• `!r @user` - Unlimited raid\n"
+        f"• `!tr @user 100` - Limited raid (100 times)\n"
+        f"• `!stopr` - Stop raid\n"
+        f"• `!raidstatus` - Check active raids\n\n"
+        f"👑 **OWNER:**\n"
+        f"• `!addline text` - Add line\n"
+        f"• `!lines` - View lines\n"
+        f"• `!dellines` - Delete lines\n\n"
+        f"🔐 **SUDO:**\n"
+        f"• `!add @user` - Add sudo\n"
+        f"• `!remove @user` - Remove sudo\n"
+        f"• `!sudolist` - List sudo\n\n"
+        f"📊 **INFO:**\n"
+        f"• `!alive` - Status\n"
+        f"• `!ping` - Speed"
+    )
+
+#=============== CALLBACK ================
 @app.on_callback_query()
 async def button_callback(client, callback_query):
     data = callback_query.data
 
     if data == "help":
-        help_text = f"""
-🤖 **BOT COMMANDS** 🤖
-
-⚔️ **RAID (Unlimited):**
-• `!r` (reply karein) - Unlimited raid start
-• `!stopr` - Raid stop
-
-👑 **Owner (Private):**
-• `!addline <text>` - Add raid line
-• `!lines` - View all lines
-
-🔐 **Sudo (Owner only):**
-• `!add @user` - Add sudo
-• `!remove @user` - Remove sudo
-• `!sudolist` - List sudo
-
-📊 **Utility:**
-• `!alive` - Bot status
-• `!ping` - Ping check
-
-📊 **Stats:**
-• Lines: {len(CUSTOM_LINES)}
-• Sudo: {len(sudo_users)}
-"""
         await callback_query.message.edit_text(
-            help_text,
+            f"🤖 **ULTRA FAST RAID BOT**\n\n"
+            f"⚔️ `!r @user` - Unlimited\n"
+            f"⚔️ `!tr @user 100` - Limited\n"
+            f"🛑 `!stopr` - Stop\n"
+            f"📊 `!raidstatus` - Status\n\n"
+            f"Speed: 100x ULTRA FAST\n"
+            f"Multi-Raid: YES",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Back", callback_data="back")]
             ])
         )
-
     elif data == "back":
         await callback_query.message.edit_text(
-            "🔥 **Welcome Back!** 🔥\n\nData is safely saved!",
+            "🔥 **ULTRA FAST RAID BOT** 🔥\n\n100x Speed | Multi-Raid | Unlimited",
             reply_markup=get_main_keyboard()
         )
-
     elif data == "home":
         await callback_query.message.edit_text(
             f"🏠 **Bot Stats**\n\n"
-            f"• Sudo Users: `{len(sudo_users)}`\n"
-            f"• Custom Lines: `{len(CUSTOM_LINES)}`\n"
-            f"• Status: Active 🟢\n"
-            f"• Raid Mode: UNLIMITED 🔥\n\n"
+            f"• Sudo: `{len(sudo_users)}`\n"
+            f"• Lines: `{len(CUSTOM_LINES)}`\n"
+            f"• Speed: 100x\n"
+            f"• Multi-Raid: ✅\n\n"
             f"👑 Owner: `{OWNER_ID}`",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Back", callback_data="back")]
             ])
         )
-
     await callback_query.answer()
 
 #=============== SHUTDOWN ================
@@ -653,19 +973,16 @@ atexit.register(save_all_data)
 if __name__ == "__main__":
     load_all_data()
     
-    if OWNER_ID not in sudo_users:
-        sudo_users.add(OWNER_ID)
-        save_sudo_users()
-    
     print("=" * 60)
-    print("🚀 **UNLIMITED RAID BOT STARTED!**")
+    print("⚡ **ULTRA FAST RAID BOT (100x SPEED)** ⚡")
     print("=" * 60)
     print(f"👑 Owner ID: {OWNER_ID}")
-    print(f"📊 Sudo Users: {len(sudo_users)}")
+    print(f"🔑 Sudo Users: {len(sudo_users)}")
     print(f"📝 Custom Lines: {len(CUSTOM_LINES)}")
-    print(f"⚡ Raid Mode: UNLIMITED (stop with !stopr)")
+    print(f"⚡ Speed: 100x ULTRA FAST")
+    print(f"🔄 Multi-Raid: ✅ Supported")
     print("=" * 60)
-    print("💾 Data auto-saves on exit!")
+    print("✅ Commands: !r | !tr | !stopr | !raidstatus")
     print("=" * 60)
 
     app.run()
